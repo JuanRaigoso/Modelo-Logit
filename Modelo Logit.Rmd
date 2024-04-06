@@ -1,0 +1,1207 @@
+---
+title: |
+  <div style="text-align: center;"><strong>Modelo Logit</strong></div>
+subtitle: |
+  <div style="text-align: center;"><strong>Ejercicio N°3</strong></div>
+author: |
+  <div style="text-align: center;"><strong>Juan David Raigoso Espinosa</strong></div>
+date: |
+  <div style="text-align: center;"><strong>2024-03-17</strong></div>
+output:
+  html_document:
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+::: text-justify
+
+En una organización, se busca comprender y prever los factores que influyen en la rotación de empleados entre distintos cargos. La empresa ha recopilado datos históricos sobre el empleo de sus trabajadores, incluyendo variables como la antigüedad en el cargo actual, el nivel de satisfacción laboral, el salario actual, edad y otros factores relevantes. La gerencia planea desarrollar un modelo de regresión logística que permita estimar la probabilidad de que un empleado cambie de cargo en el próximo período y determinar cuales factores indicen en mayor proporción a estos cambios.
+
+Con esta información, la empresa podrá tomar medidas proactivas para retener a su talento clave, identificar áreas de mejora en la gestión de recursos humanos y fomentar un ambiente laboral más estable y tranquilo. La predicción de la probabilidad de rotación de empleados ayudará a la empresa a tomar decisiones estratégicas informadas y a mantener un equipo de trabajo comprometido y satisfecho en sus roles actuales.
+
+```{r, echo=FALSE}
+suppressWarnings({
+  suppressMessages(library(paqueteMODELOS))
+  suppressMessages(library(tidyverse))
+  suppressMessages(library(mice))
+  suppressMessages(library(plotly))
+  suppressMessages(library(kableExtra))
+  suppressMessages(library(caret))
+  suppressMessages(library(ROCR))
+  suppressMessages(library(pROC))
+  suppressMessages(library(glmnet))
+  suppressMessages(library(lmtest))
+  suppressMessages(library(equatiomatic))
+  })
+```
+
+
+# Cargue de la base de datos.
+
+```{r, echo=FALSE}
+data("rotacion")
+glimpse(rotacion)
+```
+```{r,echo=FALSE}
+rotacion <- rotacion %>%
+  rename(Viaje_negocios = `Viaje de Negocios`)
+```
+
+
+Observamos que la base de datos está compuesta por 24 atributos (variables) y con un total de 1470 filas.
+
+Las variables tienen la siguiente descripción:
+
+  - Rotación: Indica si un empleado ha rotado (cambiado de puesto o dejado la empresa) en el período de tiempo estudiado.
+  - Edad: La edad del empleado en años.
+  - Viaje de Negocios: Frecuencia con la que el empleado viaja por motivos de trabajo.
+  - Departamento: El departamento al que pertenece el empleado dentro de la organización.
+  - Distancia_Casa: La distancia en kilómetros entre la casa del empleado y su lugar de trabajo.
+  - Educación: Nivel de educación del empleado (por ejemplo, primaria, secundaria, universitaria).
+  - Campo_Educación: Campo de estudio del empleado (por ejemplo, ciencias, humanidades, tecnología).
+  - Satisfacción_Ambiental: Nivel de satisfacción del empleado con el ambiente laboral.
+  - Género: Género del empleado (masculino o femenino).
+  - Cargo: El cargo que ocupa el empleado dentro de la organización.
+  - Satisfacción_Laboral: Nivel de satisfacción general del empleado con su trabajo.
+  - Estado_Civil: Estado civil del empleado (soltero, casado, divorciado, etc.).
+  - Ingreso_Mensual: Salario mensual del empleado en la organización.
+  - Trabajos_Anteriores: Número de trabajos anteriores que ha tenido el empleado.
+  - Horas_Extra: Indica si el empleado realiza horas extras en su trabajo.
+  - Porcentaje_aumento_salarial: Porcentaje de aumento salarial del empleado en el último período.
+  - Rendimiento_Laboral: Evaluación del rendimiento laboral del empleado.
+  - Años_Experiencia: Años de experiencia laboral del empleado en general.
+  - Capacitaciones: Número de capacitaciones o cursos de formación que ha recibido el empleado.
+  - Equilibrio_Trabajo_Vida: Percepción del empleado sobre el equilibrio entre su trabajo y su vida personal.
+  - Antigüedad: Tiempo que el empleado lleva en la organización.
+  - Antigüedad_Cargo: Tiempo que el empleado lleva en su cargo actual.
+  - Años_ultima_promoción: Años transcurridos desde la última promoción del empleado.
+  - Años_acargo_con_mismo_jefe: Años que el empleado ha estado bajo la supervisión del mismo jefe.
+
+# 1. Selección de variables
+
+Para seleccionar las variables categóricas y cuantitativas relacionadas con la rotación de empleados, podemos considerar las siguientes:
+
+**Variables categóricas:**
+
+  - **Viaje de Negocios:** Se espera que los empleados que viajan con más frecuencia por negocios tengan una mayor probabilidad de rotación, ya que los viajes constantes pueden afectar su vida personal y profesional.
+
+  - **Departamento:** Es probable que la pertenencia a ciertos departamentos tenga un impacto en la rotación de empleados. Por ejemplo, es posible que los departamentos con mayores cargas de trabajo o con menos oportunidades de crecimiento tengan una mayor rotación.
+
+  - **Estado Civil:** Se puede hipotetizar que el estado civil de los empleados pueda influir en su decisión de rotar. Por ejemplo, los empleados solteros pueden tener una mayor movilidad laboral en comparación con los empleados casados, debido a diferentes compromisos familiares y personales.
+
+**Variables cuantitativas:**
+
+  - **Edad:** Es posible que la edad de los empleados esté relacionada con la rotación laboral. Por ejemplo, los empleados más jóvenes pueden tener una mayor propensión a cambiar de trabajo en busca de nuevas oportunidades, mientras que los empleados mayores pueden buscar estabilidad laboral.
+
+  - **Satisfacción Laboral:** Se espera que los empleados con niveles más bajos de satisfacción laboral tengan una mayor probabilidad de rotación. La insatisfacción en el trabajo puede llevar a los empleados a buscar nuevas oportunidades en otros lugares.
+
+  - **Ingreso Mensual:** El nivel de salario puede influir en la rotación de empleados. Se puede esperar que los empleados con salarios más bajos tengan una mayor probabilidad de rotación si encuentran oportunidades con una remuneración más alta.
+
+Estas variables se seleccionaron considerando la posible relación teórica con la rotación de empleados y las expectativas sobre cómo estas variables podrían influir en la probabilidad de rotación. Es importante analizar estos datos para confirmar o refutar estas hipótesis y determinar la naturaleza de las relaciones entre estas variables y la rotación de empleados.
+
+
+
+# 2. Análisis univariado.
+
+
+## Variable Rotación.
+
+En la variable rotación el 83.9% de los datos tiene la categoría No y solo el 16.1% la categoría Si. Acá vemos un gran desbalance de los datos, pues la desigualdad en la distribución de clases puede indicar un problema de desequilibrio de clases. En este caso, hay muchas más instancias de la clase "no rotación" que de la clase "rotación". Esto puede sesgar el modelo hacia la clase mayoritaria y afectar su capacidad para predecir correctamente la clase minoritaria.
+
+```{r, echo=FALSE}
+# Crear un resumen de la frecuencia de la variable "Rotación"
+resumen_rotacion <- table(rotacion$Rotación)
+
+# Convertir el resumen en un data frame
+df_rotacion <- as.data.frame(resumen_rotacion)
+colores_pasteles <- c("#a62520", "#ffbeae")
+# Renombrar las columnas
+colnames(df_rotacion) <- c("Rotacion", "Frecuencia")
+
+# Crear el gráfico de torta interactivo
+plot_ly(data = df_rotacion, labels = ~Rotacion, values = ~Frecuencia, type = 'pie',marker = list(colors = colores_pasteles)) %>%
+  layout(title = "Porcentaje de Rotación",
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+```
+
+## Variable Viaje de Negocios.
+
+En relación con la variable Viajes de Negocios, la categoría Raramente representa el 71% (1043 observaciones) de los datos, seguidamente de la categoría Frecuentemente y por último con un 10% se encuentra la categoría No_viaja.
+
+```{r, echo=FALSE}
+# Crear un resumen de la frecuencia de la variable "Viaje de Negocios"
+resumen_viajes <- table(rotacion$Viaje_negocios)
+
+# Convertir el resumen en un data frame
+df_viajes <- as.data.frame(resumen_viajes)
+
+# Renombrar las columnas
+colnames(df_viajes) <- c("Viaje", "Frecuencia")
+
+# Crear el gráfico de barras con ggplot2
+grafico_ggplot <- ggplot(df_viajes, aes(x = Viaje, y = Frecuencia, fill = Viaje)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Frecuencia de Viajes de Negocios",
+       x = "¿Cada cuánto viaja?",
+       y = "Frecuencia") +
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+```{r, echo=FALSE}
+# Calcular la frecuencia absoluta de cada categoría
+frecuencia_viaje_negocios <- table(rotacion$Viaje_negocios)
+
+# Calcular el porcentaje de cada categoría respecto al total
+porcentaje_viaje_negocios <- prop.table(frecuencia_viaje_negocios) * 100
+
+# Moda: encontrar la categoría más frecuente
+moda_viaje_negocios <- names(frecuencia_viaje_negocios)[which.max(frecuencia_viaje_negocios)]
+
+# Número de categorías únicas
+num_categorias_viaje_negocios <- length(unique(rotacion$Viaje_negocios))
+
+# Crear data frame para la tabla
+tabla_viaje_negocios <- data.frame(Categoria = names(frecuencia_viaje_negocios),
+                                   Frecuencia_Absoluta = as.character(as.integer(frecuencia_viaje_negocios)), # Convertir a entero y luego a caracter
+                                   Porcentaje = paste0(format(porcentaje_viaje_negocios, digits = 2), "%")) %>%
+  bind_rows(data.frame(Categoria = "Moda", Frecuencia_Absoluta = moda_viaje_negocios, Porcentaje = NA_character_),
+            data.frame(Categoria = "Num. Categorias Unicas", Frecuencia_Absoluta = as.character(num_categorias_viaje_negocios), Porcentaje = NA_character_))
+
+# Mostrar la tabla con formato kable
+tabla_final_viaje_negocios <- tabla_viaje_negocios %>%
+  kable(format = "html", caption = "Indicadores para la variable Viaje de Negocios") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_final_viaje_negocios
+```
+
+
+## Variable Departamento.
+
+AL describir la variable Departamento vemos que la categoría IyD es el departamento con más personal hay en la empresa, pues este departamento representa el 65,4% de los empleados de la empresa, seguidamente de ventas con un 30.3% y por último RH con un 4.3%.
+
+```{r, echo=FALSE}
+resumen_departamento <- table(rotacion$Departamento)
+
+# Convertir el resumen en un data frame
+df_departamento <- as.data.frame(resumen_departamento)
+
+# Renombrar las columnas
+colnames(df_departamento) <- c("Departamento", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#0B7072", "#F1713F", "#87C19B")
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_departamento, aes(x = Departamento, y = Frecuencia, fill = Departamento)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Cantidad de personas por Departamento",
+       x = "Tipo de Departamento",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+
+```{r, echo=FALSE}
+# Calcular la frecuencia absoluta de cada categoría
+frecuencia_departamento <- table(rotacion$Departamento)
+
+# Calcular el porcentaje de cada categoría respecto al total
+porcentaje_departamento <- prop.table(frecuencia_departamento) * 100
+
+# Moda: encontrar la categoría más frecuente
+moda_departamento <- names(frecuencia_departamento)[which.max(frecuencia_departamento)]
+
+# Número de categorías únicas
+num_categorias <- length(unique(rotacion$Departamento))
+
+# Crear data frame para la tabla
+tabla_departamento <- data.frame(Categoria = names(frecuencia_departamento),
+                                 Frecuencia_Absoluta = as.character(as.integer(frecuencia_departamento)), # Convertir a entero y luego a caracter
+                                 Porcentaje = paste0(format(porcentaje_departamento, digits = 2), "%")) %>%
+  bind_rows(data.frame(Categoria = "Moda", Frecuencia_Absoluta = moda_departamento, Porcentaje = NA_character_),
+            data.frame(Categoria = "Num. Categorias Unicas", Frecuencia_Absoluta = as.character(num_categorias), Porcentaje = NA_character_))
+
+# Mostrar la tabla con formato kable
+tabla_final <- tabla_departamento %>%
+  kable(format = "html", caption = "Indicadores para la variable Departamento") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_final
+```
+
+
+## Variable Estado Civil.
+
+En la empresa hay gran porcentaje de persona que están casadas, pues el 46% de las personas tiene este estado civil. Los Solteros representan el 32% y Divorciados el 22%.
+
+```{r, echo=FALSE}
+resumen_Estado_Civil <- table(rotacion$Estado_Civil)
+
+# Convertir el resumen en un data frame
+df_E_C <- as.data.frame(resumen_Estado_Civil)
+
+# Renombrar las columnas
+colnames(df_E_C) <- c("Estado_civil", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#b52c00", "#fcf7d1", "#8c0005")
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_E_C, aes(x = Estado_civil, y = Frecuencia, fill = Estado_civil)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Cantidad de personas por Estado civil",
+       x = "Estado civil",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+
+```
+
+
+```{r, echo=FALSE}
+# Calcular la frecuencia absoluta de cada categoría
+frecuencia_estado_civil <- table(rotacion$Estado_Civil)
+
+# Calcular el porcentaje de cada categoría respecto al total
+porcentaje_estado_civil <- prop.table(frecuencia_estado_civil) * 100
+
+# Moda: encontrar la categoría más frecuente
+moda_estado_civil <- names(frecuencia_estado_civil)[which.max(frecuencia_estado_civil)]
+
+# Número de categorías únicas
+num_categorias_estado_civil <- length(unique(rotacion$Estado_Civil))
+
+# Crear data frame para la tabla
+tabla_estado_civil <- data.frame(Categoria = names(frecuencia_estado_civil),
+                                 Frecuencia_Absoluta = as.character(as.integer(frecuencia_estado_civil)), # Convertir a entero y luego a caracter
+                                 Porcentaje = paste0(format(porcentaje_estado_civil, digits = 2), "%")) %>%
+  bind_rows(data.frame(Categoria = "Moda", Frecuencia_Absoluta = moda_estado_civil, Porcentaje = NA_character_),
+            data.frame(Categoria = "Num. Categorias Unicas", Frecuencia_Absoluta = as.character(num_categorias_estado_civil), Porcentaje = NA_character_))
+
+# Mostrar la tabla con formato kable
+tabla_final_estado_civil <- tabla_estado_civil %>%
+  kable(format = "html", caption = "Indicadores para la variable Estado Civil") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_final_estado_civil
+```
+
+
+## Variable Edad.
+
+En la variable edad observamos que las personas no son tan longevas, pues el 75% de las personas tiene una edad igual o menor a 43 años y en promedio los empelados tiene 36 años de edad. Por otro lado,l a mediana es 36. Esto significa que el 50% de las personas tienen una edad igual o inferior a 36 años, y el otro 50% tienen una edad igual o superior a 36 años. Es decir, la mediana representa el punto central de los datos ordenados por edad.
+
+Una desviación estándar de aproximadamente 9.14 años indica que, en promedio, las edades en el conjunto de datos están dispersas alrededor de la media de 36.92 años.
+
+Rango: El rango es 42. Esto indica la diferencia entre la edad más alta y la más baja en el conjunto de datos. En este caso, la diferencia entre la edad más alta y la más baja es de 42 años.
+
+```{r, echo=FALSE}
+colores_pasteles <- c("#56a292")
+
+# Crea el histograma con ggplot2 y personaliza el tema y los colores
+histograma_ggplot <- ggplot(rotacion, aes(x = Edad)) +
+  geom_histogram(binwidth = 5, fill = colores_pasteles[1], color = "black") +
+  labs(title = "Distribución por edades",
+       x = "Edad",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        plot.title = element_text(color = "black", size = 16),
+        axis.title.x = element_text(color = "black", size = 12),
+        axis.title.y = element_text(color = "black", size = 12))
+
+# Convierte el gráfico de ggplot2 a plotly
+histograma_plotly <- ggplotly(histograma_ggplot)
+
+# Muestra el gráfico interactivo de plotly
+histograma_plotly
+```
+
+
+```{r, echo=FALSE}
+# Calcula los indicadores estadísticos
+estadisticas_edad <- summarise(rotacion,
+                               Mediana = median(Edad, na.rm = TRUE),
+                               Media = mean(Edad, na.rm = TRUE),
+                               Rango = max(Edad, na.rm = TRUE) - min(Edad, na.rm = TRUE),
+                               Cuantil_25 = quantile(Edad, 0.25, na.rm = TRUE),
+                               Cuantil_75 = quantile(Edad, 0.75, na.rm = TRUE),
+                               Moda = names(sort(table(Edad), decreasing = TRUE)[1]),
+                               Varianza = var(Edad, na.rm = TRUE),
+                               Desv_Estandar = sd(Edad, na.rm = TRUE))
+
+# Crear la tabla con kableExtra
+tabla_estadisticas <- kable(estadisticas_edad, format = "html", caption = "Indicadores estadísticos de la variable Edad") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_estadisticas
+```
+
+## Variable Satisfacción Laboral.
+
+En relación con la variable Satisfacción Laboral. En este caso vamos a suponer que 1 representa el grado más bajo de satisfacción laboral;2 2 indica una satisfacción laboral moderadamente baja; 3 representa un nivel moderado de satisfacción laboral; y 4 indica el grado más alto de satisfacción laboral.
+
+  - Mediana: La mediana es 3. Esto significa que el 50% de los empleados encuestados tienen una satisfacción laboral igual o inferior a 3, y el otro 50% tienen una satisfacción laboral igual o superior a 3. En otras palabras, la mediana representa el punto central de los datos ordenados.
+  
+  - Media: La media es aproximadamente 2.73. Esto indica el promedio de satisfacción laboral entre los empleados encuestados.
+  
+  - Varianza: La varianza es aproximadamente 1.22. La varianza mide qué tan dispersos están los datos con respecto a la media.
+
+
+```{r, echo=FALSE}
+resumen_satisfaccion <- table(rotacion$Satisfación_Laboral)
+df_satisfa<- as.data.frame( resumen_satisfaccion)
+
+colores_pasteles <- c("#51445f", "#ffbeae", "#492d49","#d1b68d")
+# Renombrar las columnas
+colnames(df_satisfa) <- c("Satisfacción", "Frecuencia")
+
+# Crear el gráfico de torta interactivo
+plot_ly(data = df_satisfa, labels = ~Satisfacción, values = ~Frecuencia, type = 'pie',marker = list(colors = colores_pasteles)) %>%
+  layout(title = "Porcentaje de Satisfacción Laboral",
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+```
+
+```{r,echo=FALSE}
+# Calcula los indicadores estadísticos
+estadisticas_Satisfación_Laboral <- summarise(rotacion,
+                               Mediana = median(Satisfación_Laboral, na.rm = TRUE),
+                               Media = mean(Satisfación_Laboral, na.rm = TRUE),
+                               Rango = max(Satisfación_Laboral, na.rm = TRUE) - min(Edad, na.rm = TRUE),
+                               Cuantil_25 = quantile(Satisfación_Laboral, 0.25, na.rm = TRUE),
+                               Cuantil_75 = quantile(Satisfación_Laboral, 0.75, na.rm = TRUE),
+                               Moda = names(sort(table(Satisfación_Laboral), decreasing = TRUE)[1]),
+                               Varianza = var(Satisfación_Laboral, na.rm = TRUE),
+                               Desv_Estandar = sd(Satisfación_Laboral, na.rm = TRUE))
+
+# Crear la tabla con kableExtra
+tabla_estadisticas <- kable(estadisticas_Satisfación_Laboral, format = "html", caption = "Indicadores estadísticos de la variable Satisfacción Laboral") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_estadisticas
+```
+
+
+## Variable Ingreso Mensual.
+
+La mediana, que representa el valor central de los ingresos, es de 4919 unidades monetarias, lo que indica que el 50% de los individuos tienen ingresos iguales o inferiores a este valor. Sin embargo, la media de ingresos es considerablemente más alta, alcanzando los 6502.931 unidades monetarias, lo que sugiere la presencia de algunos valores atípicos o una distribución sesgada hacia la derecha. El rango de ingresos es bastante amplio, con una diferencia de 19981 unidades monetarias entre el valor máximo y mínimo observado, reflejando la diversidad de los ingresos en el conjunto de datos. Los cuantiles 25 y 75 muestran que el 25% de los individuos tienen ingresos iguales o inferiores a 2911 unidades monetarias, mientras que el 75% tienen ingresos iguales o inferiores a 8379 unidades monetarias. La moda, representada por 2342 unidades monetarias, indica el valor más común de ingresos en el conjunto de datos. La varianza, calculada en 22164857, y la desviación estándar, aproximadamente 4707.957, revelan una dispersión significativa alrededor de la media de ingresos, lo que sugiere una gran variabilidad en los ingresos mensuales de los individuos encuestados. En conjunto, estos datos ilustran la complejidad y diversidad de la distribución de ingresos mensuales en la empresa.
+
+
+```{r, echo=FALSE}
+# Crear el histograma con ggplot2
+histograma_ggplot <- ggplot(rotacion, aes(x = Ingreso_Mensual)) +
+  geom_histogram(binwidth = 1000, fill = "#492d49", color = "black") +
+  labs(title = "Distribución del Ingreso Mensual",
+       x = "Ingreso Mensual",
+       y = "Frecuencia") +
+  theme_minimal()
+
+# Convertir el histograma de ggplot2 a plotly
+histograma_plotly <- ggplotly(histograma_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+histograma_plotly
+```
+
+```{r,echo=FALSE}
+# Calcula los indicadores estadísticos
+estadisticas_Ingreso_Mensual <- summarise(rotacion,
+                               Mediana = median(Ingreso_Mensual, na.rm = TRUE),
+                               Media = mean(Ingreso_Mensual, na.rm = TRUE),
+                               Rango = max(Ingreso_Mensual, na.rm = TRUE) - min(Edad, na.rm = TRUE),
+                               Cuantil_25 = quantile(Ingreso_Mensual, 0.25, na.rm = TRUE),
+                               Cuantil_75 = quantile(Ingreso_Mensual, 0.75, na.rm = TRUE),
+                               Moda = names(sort(table(Ingreso_Mensual), decreasing = TRUE)[1]),
+                               Varianza = var(Ingreso_Mensual, na.rm = TRUE),
+                               Desv_Estandar = sd(Ingreso_Mensual, na.rm = TRUE))
+
+# Crear la tabla con kableExtra
+tabla_estadisticas <- kable(estadisticas_Ingreso_Mensual, format = "html", caption = "Indicadores estadísticos de la variable Ingreso Mensual") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Mostrar la tabla
+tabla_estadisticas
+```
+
+# 3. Análisis bivariado.
+
+## Relación Rotación - Viaje de negocios.
+
+Al realizar el análisis entre las variables Rotación y Viaje de negocios, vemos que hay una gran cantidad de personas que raramente viajan y no rotan entre distintos cargos, así mismo, los hay mayor cantidad de empleados que viajan frecuentemente por negocios, pero no hay rotación entre los cargos.
+
+No obstante, si se presenta rotación de empelados entre diversos cargos, pero con menor frecuencia. Cabe aclarar que la base de datos esta desbalanceada, como se había mencionado mas del 83% de los empleados no han generado rotación, por lo tanto, esto podría estar afectando como se distribuye la rotación entre diversos cargos según variable.
+
+Sin embargo, al contrastar los resultados con la hipótesis “espera que los empleados que viajan con más frecuencia por negocios tengan una mayor probabilidad de rotación, ya que los viajes constantes pueden afectar su vida personal y profesional.” Parece no cumplirse 
+
+```{r, echo=FALSE}
+# Contar la frecuencia de cada combinación de valores entre "Rotación" y "Viaje de Negocios"
+resumen_combinaciones <- table(rotacion$Rotación, rotacion$Viaje_negocios)
+
+# Convertir el resumen en un data frame
+df_combinaciones <- as.data.frame(resumen_combinaciones)
+
+# Renombrar las columnas
+colnames(df_combinaciones) <- c("Rotacion", "Viaje_Negocios", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#FFB6C1", "#FFD700", "#87CEEB", "#98FB98")  # Ejemplo de colores pasteles
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_combinaciones, aes(x = Rotacion, y = Frecuencia, fill = Viaje_Negocios)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Frecuencia de Rotación por Viaje de Negocios",
+       x = "Rotación",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+```{r, echo=FALSE}
+rotacion$rota_Codifica <- as.numeric(ifelse(rotacion$Rotación == "Si", 1, 0))
+modelo_Viaje <- glm(rota_Codifica ~ Viaje_negocios, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Viaje)$coefficients,3)
+```
+
+Ambos valores de Viaje de Negocios ("No Viaja" y "Raramente") tienen coeficientes estimados significativos (p < 0.05), lo que sugiere que la frecuencia de viaje de negocios de los empleados tiene un impacto significativo en la probabilidad de rotación. Específicamente, los empleados que no viajan o viajan raramente tienen una mayor probabilidad de rotación en comparación con aquellos que viajan con más frecuencia.
+
+## Relación Rotación - Departamento.
+
+Caso similar ocurre con la relación entre la variable Departamento y Rotación, donde gran parte de los empleados según departamento no hay presentado rotación, sobre todo los empleados que se encuentran en el área de Innovación y Desarrollo, y en el área de ventas.
+
+Al contrastar la hipótesis “Es probable que la pertenencia a ciertos departamentos tenga un impacto en la rotación de empleados. Por ejemplo, es posible que los departamentos con mayores cargas de trabajo o con menos oportunidades de crecimiento tengan una mayor rotación.” La hipótesis no se cumple.
+
+```{r, echo=FALSE}
+# Contar la frecuencia de cada combinación de valores entre "Rotación" y "Viaje de Negocios"
+resumen_combinaciones_depar <- table(rotacion$Rotación, rotacion$Departamento)
+
+# Convertir el resumen en un data frame
+df_combinaciones_depar <- as.data.frame(resumen_combinaciones_depar)
+
+# Renombrar las columnas
+colnames(df_combinaciones_depar) <- c("Rotacion", "Departamento", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#5A87A3", "#FFF69A", "#68FFDA", "#98FB98")  # Ejemplo de colores pasteles
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_combinaciones_depar, aes(x = Rotacion, y = Frecuencia, fill = Departamento)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Relación entre rotación y Departamento",
+       x = "Rotación",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+```{r, echo=FALSE}
+modelo_Departamento <- glm(rota_Codifica ~ Departamento, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Departamento)$coefficients,3)
+```
+
+Ambos valores de Departamento ("RH" y "Ventas") tienen coeficientes estimados significativos (p < 0.05), lo que sugiere que la pertenencia a estos departamentos tiene un impacto significativo en la probabilidad de rotación. Específicamente, los empleados en el departamento de "Ventas" tienen una mayor probabilidad de rotación en comparación con otros departamentos.
+
+
+## Relación Rotación - Estado Civil.
+
+En relación con las variables Rotación y Estado civil se visualiza que la mayor parte de los empleados Casados, Solteros y Divorciados no han presentado rotación de sus puestos, esto demuestra que la hipótesis planteada: “Se puede hipotetizar que el estado civil de los empleados pueda influir en su decisión de rotar. Por ejemplo, los empleados solteros pueden tener una mayor movilidad laboral en comparación con los empleados casados, debido a diferentes compromisos familiares y personales.” No se cumple.
+
+
+```{r, echo=FALSE}
+# Contar la frecuencia de cada combinación de valores entre "Rotación" y "Viaje de Negocios"
+resumen_combinaciones_EC <- table(rotacion$Rotación, rotacion$Estado_Civil)
+
+# Convertir el resumen en un data frame
+df_combinaciones_depar_EC <- as.data.frame(resumen_combinaciones_EC)
+
+# Renombrar las columnas
+colnames(df_combinaciones_depar_EC) <- c("Rotacion", "Estado_Civil", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#011F26", "#03A688", "#F2668B", "#98FB98")  # Ejemplo de colores pasteles
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_combinaciones_depar_EC, aes(x = Rotacion, y = Frecuencia, fill = Estado_Civil)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Relación entre rotación y Estado civil",
+       x = "Rotación",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+```{r, echo=FALSE}
+modelo_Estado_Civil <- glm(rota_Codifica ~ Estado_Civil, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Estado_Civil)$coefficients,3)
+```
+
+El valor de Estado Civil "Soltero" tiene un coeficiente estimado significativo (p < 0.05), lo que sugiere que el estado civil de los empleados solteros tiene un impacto significativo en la probabilidad de rotación. Los empleados solteros tienen una mayor probabilidad de rotación en comparación con otros estados civiles.
+
+## Relación Rotación - Edad.
+
+Al Observar la relación entre la Edad y la Rotación, vemos que las personas más jóvenes son las que rotan, pues los empleados que presentaron rotación de cargos el 75% tiene una edad igual o menor a 39 años. Caso opuesto sucede con los que no rotan donde el 75% de estos tiene una edad igual o inferior a 43 años.
+
+Se podría decir que la hipótesis “ Es posible que la edad de los empleados esté relacionada con la rotación laboral. Por ejemplo, los empleados más jóvenes pueden tener una mayor propensión a cambiar de trabajo en busca de nuevas oportunidades, mientras que los empleados mayores pueden buscar estabilidad laboral.” Se está cumpliendo.
+
+```{r, echo=FALSE}
+# Crear el gráfico de cajas con ggplot2 y especificar los colores pasteles
+cajas_edad_ggplot <- ggplot(rotacion, aes(x = as.factor(Rotación), y = Edad, fill = as.factor(Rotación))) +
+  geom_boxplot() +
+  labs(title = "Distribución de Edad por Rotación",
+       x = "Rotación",
+       y = "Edad") +
+  scale_fill_manual(values = c("#1D438A", "#FEECA9")) +  # Colores pasteles para cada caja
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+cajas_edad_plotly <- ggplotly(cajas_edad_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+cajas_edad_plotly
+```
+
+```{r, echo=FALSE}
+modelo_Edad <- glm(rota_Codifica ~ Edad, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Edad)$coefficients,3)
+```
+
+La variable de Edad tiene un coeficiente estimado significativo (p < 0.05), lo que indica que la edad de los empleados tiene un impacto significativo en la probabilidad de rotación. Sin embargo, como el coeficiente es negativo, esto sugiere que a medida que la edad aumenta, la probabilidad de rotación tiende a disminuir.
+
+## Relación Rotación - Satisfacción Laboral.
+
+Las variables Rotación y Satisfacción Laboral, en la cual plateamos la hipótesis “los empleados con niveles más bajos de satisfacción laboral tengan una mayor probabilidad de rotación. La insatisfacción en el trabajo puede llevar a los empleados a buscar nuevas oportunidades en otros lugares.” Parece no cumplirse, ya que al observar la gráfica siguiente se muestra que los empleados que daban una calificación de 1 o 2 (1 representa el grado más bajo de satisfacción laboral;2 2 indica una satisfacción laboral moderadamente baja) no presentan rotación de sus cargos.
+
+```{r, echo=FALSE}
+# Calcula la frecuencia de Rotación y la media de Satisfacción Laboral para cada categoría de Rotación
+resumen_combinaciones_EC <- table(rotacion$Rotación, rotacion$Satisfación_Laboral)
+
+# Convertir el resumen en un data frame
+df_combinaciones_depar_EC <- as.data.frame(resumen_combinaciones_EC)
+
+# Renombrar las columnas
+colnames(df_combinaciones_depar_EC) <- c("Rotacion", "Satisfacción_Laboral", "Frecuencia")
+
+# Definir una paleta de colores pasteles
+colores_pasteles <- c("#193C40", "#214001", "#A62B1F", "#D96941")  # Ejemplo de colores pasteles
+
+# Crear el gráfico de barras con ggplot2 y especificar los colores
+grafico_ggplot <- ggplot(df_combinaciones_depar_EC, aes(x = Rotacion, y = Frecuencia, fill = Satisfacción_Laboral)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Relación entre rotación y Satisfacción Laboral",
+       x = "Rotación",
+       y = "Frecuencia") +
+  scale_fill_manual(values = colores_pasteles) +  # Asignar los colores pasteles
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+grafico_plotly <- ggplotly(grafico_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+grafico_plotly
+```
+
+```{r, echo=FALSE}
+modelo_Satisfacción_Laboral <- glm(rota_Codifica ~ Satisfación_Laboral, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Satisfacción_Laboral)$coefficients,3)
+```
+
+La variable de Satisfacción Laboral tiene un coeficiente estimado significativo (p < 0.05), lo que sugiere que la satisfacción laboral de los empleados tiene un impacto significativo en la probabilidad de rotación. Un valor negativo indica que una mayor satisfacción laboral está asociada con una menor probabilidad de rotación.
+
+## Relación Rotación - Ingreso Mensual.
+
+Por último, la relación entre el ingreso mensual y la Rotación, al apoyarnos en nuestra hipótesis “El nivel de salario puede influir en la rotación de empleados. Se puede esperar que los empleados con salarios más bajos tengan una mayor probabilidad de rotación si encuentran oportunidades con una remuneración más alta.” Los empleados que presentan rotación son aquellos donde el nivel de ingresos mensuales es más bajo, pues el 75% de ellos tiene un ingreso igual o menor a 5935. Por otro lado, los empleados que No presentaron rotación el 75% de ellos tienen un ingreso igual o menor a 8834.
+
+```{r, echo=FALSE}
+# Crear el gráfico de cajas con ggplot2 y especificar los colores pasteles
+cajas_ingreso_ggplot <- ggplot(rotacion, aes(x = as.factor(Rotación), y = Ingreso_Mensual, fill = as.factor(Rotación))) +
+  geom_boxplot() +
+  labs(title = "Distribución de Ingreso Mensual por Rotación",
+       x = "Rotación",
+       y = "Ingreso Mensual") +
+  scale_fill_manual(values = c("#709A86", "#964083")) +  # Colores pasteles para cada caja
+  theme_minimal()
+
+# Convertir el gráfico de ggplot2 a plotly
+cajas_ingreso_plotly <- ggplotly(cajas_ingreso_ggplot)
+
+# Mostrar el gráfico interactivo de plotly
+cajas_ingreso_plotly
+```
+
+```{r, echo=FALSE}
+modelo_Ingreso_Mensual <- glm(rota_Codifica ~ Ingreso_Mensual, data = rotacion, family = binomial(link = "logit"))
+round(summary(modelo_Ingreso_Mensual)$coefficients,3)
+```
+
+La variable de Ingreso Mensual tiene un coeficiente estimado significativo (p < 0.05), lo que sugiere que el nivel de ingresos mensuales de los empleados tiene un impacto significativo en la probabilidad de rotación. El coeficiente es positivo, lo que indica que a medida que aumenta el ingreso mensual, la probabilidad de rotación tiende a aumentar.
+
+# 4. Estimación del modelo.
+
+En esta parte creamos dos modelos con las mismas variables, sin embargo, el modelo N°2 se va a dividir en entrenamiento y prueba con el fin de mejorar la predicción o encontrar el mejor modelo.
+
+Antes de empezar a estimar los modelos, se realiza el escalamiento de las variables **Edad** e **Ingreso Mesensual**, esto con el fin de ayudar a mejorar la estabilidad del ajuste del modelo y facilitar la interpretación de los coeficientes. Esto puede conducir a un mejor rendimiento predictivo y una mayor confianza en los resultados del modelo.
+
+```{r, echo=FALSE}
+# Convertir "Si" a 1 y "No" a 0 en la variable Rotación
+rotacion$Rotación <- recode(rotacion$Rotación, "Si" = 1, "No" = 0, .default = -1)
+# Cambiar el nombre de la columna 'viaje de negocios' a 'viaje_negocios'
+names(rotacion)[names(rotacion) == "Viaje de Negocios"] <- "Viaje_negocios"
+```
+
+
+```{r, echo=FALSE}
+# Escalar la edad directamente en la base de datos rotacion
+rotacion$Edad_Escalada <- scale(rotacion$Edad)[,1]
+
+# Escalar el ingreso mensual directamente en la base de datos rotacion
+rotacion$Ingreso_Mensual_Escalada <- scale(rotacion$Ingreso_Mensual)[,1]
+```
+
+
+```{r, echo=FALSE}
+# Definir la semilla para reproducibilidad
+set.seed(123)
+
+# Dividir la base de datos en conjuntos de entrenamiento y prueba (70% - 30%)
+indices <- createDataPartition(rotacion$Rotación, p = 0.7, list = FALSE)
+datos_entrenamiento <- rotacion[indices, ]
+datos_prueba <- rotacion[-indices, ]
+```
+
+
+```{r, echo=FALSE}
+# Ajustar el modelo logit
+modelo_logit_1 <- glm(Rotación ~ Viaje_negocios + Departamento + Estado_Civil + Edad_Escalada + Satisfación_Laboral + Ingreso_Mensual_Escalada,data = rotacion,binomial(link = "logit"))
+# Modelo 2
+modelo_logit_2 <- glm(Rotación ~ Viaje_negocios + Departamento + Estado_Civil + Edad_Escalada + Satisfación_Laboral + Ingreso_Mensual_Escalada,data = datos_entrenamiento,binomial(link = "logit"))
+```
+
+  - **Modelo 1.**
+  
+```{r,echo=FALSE}
+summary(modelo_logit_1)
+```
+
+El modelo queda de la siguiente forma:
+
+```{r,echo=FALSE}
+extract_eq(modelo_logit_1, wrap = TRUE, terms_per_line = 2,use_coefs = TRUE)
+```
+
+Los resultados del modelo de regresión logística proporcionan información sobre cómo cada variable independiente (predictora) contribuye a predecir la variable dependiente (Rotación), que en este caso es binaria (0 para no rotación y 1 para rotación). Aquí está una interpretación de los resultados:
+
+Coeficientes:
+
+  - Viaje_negociosNo_Viaja: Un coeficiente negativo (-1.36825) indica que si un empleado no viaja por negocios, es probable que tenga una menor probabilidad de rotación en comparación con aquellos que viajan frecuentemente. Esto sugiere que la falta de viajes por negocios puede estar asociada con una mayor estabilidad en el empleo.
+
+  - Viaje_negociosRaramente: Similarmente, un coeficiente negativo (-0.65879) sugiere que si un empleado viaja raramente por negocios, es probable que tenga una menor probabilidad de rotación en comparación con aquellos que viajan frecuentemente. Esto indica que la frecuencia de viajes por negocios podría influir en la estabilidad laboral.
+
+   -DepartamentoRH y DepartamentoVentas: Los coeficientes positivos para estos dos departamentos sugieren que los empleados en Recursos Humanos y Ventas tienen una mayor probabilidad de rotación en comparación con aquellos en otros departamentos. Esto podría estar relacionado con las características específicas de los roles en esos departamentos, como las expectativas de trabajo o las oportunidades de crecimiento.
+
+  - Estado_CivilDivorciado y Estado_CivilSoltero: El coeficiente positivo para el estado civil "Soltero" sugiere que los empleados solteros tienen una mayor probabilidad de rotación en comparación con los casados. Por otro lado, el coeficiente negativo para "Divorciado" indica que los empleados divorciados pueden tener una menor probabilidad de rotación en comparación con los casados. Esto podría estar relacionado con las responsabilidades familiares y el equilibrio entre el trabajo y la vida personal.
+
+  - Edad_Escalada, Satisfacción_Laboral e Ingreso_Mensual_Escalada: Los coeficientes negativos para estas variables sugieren que un aumento en la edad, la satisfacción laboral y el ingreso mensual está asociado con una menor probabilidad de rotación. Esto indica que los empleados más jóvenes, menos satisfechos con su trabajo y con salarios más bajos podrían tener una mayor probabilidad de rotación.
+
+  - **Modelo 2.**
+  
+```{r, echo=FALSE}
+summary(modelo_logit_2)
+```
+
+El modelo queda de la siguiente forma:
+
+```{r,echo=FALSE}
+extract_eq(modelo_logit_2, wrap = TRUE, terms_per_line = 2,use_coefs = TRUE)
+```
+
+
+Coeficientes:
+
+  - Viaje_negociosNo_Viaja: Un coeficiente negativo (-1.23528) sugiere que si un empleado no viaja por negocios, es probable que tenga una menor probabilidad de rotación en comparación con aquellos que viajan frecuentemente. Esto indica que la falta de viajes por negocios puede estar asociada con una mayor estabilidad en el empleo.
+
+  - Viaje_negociosRaramente: Un coeficiente negativo (-0.72539) sugiere que si un empleado viaja raramente por negocios, es probable que tenga una menor probabilidad de rotación en comparación con aquellos que viajan frecuentemente. Esto indica que la frecuencia de viajes por negocios podría influir en la estabilidad laboral.
+
+  - DepartamentoRH y DepartamentoVentas: Los coeficientes positivos para estos dos departamentos sugieren que los empleados en Recursos Humanos y Ventas tienen una mayor probabilidad de rotación en comparación con aquellos en otros departamentos. Esto podría estar relacionado con las características específicas de los roles en esos departamentos, como las expectativas de trabajo o las oportunidades de crecimiento.
+
+  - Estado_CivilDivorciado y Estado_CivilSoltero: El coeficiente positivo para el estado civil "Soltero" sugiere que los empleados solteros tienen una mayor probabilidad de rotación en comparación con los casados. Por otro lado, el coeficiente negativo para "Divorciado" indica que los empleados divorciados pueden tener una menor probabilidad de rotación en comparación con los casados. Esto podría estar relacionado con las responsabilidades familiares y el equilibrio entre el trabajo y la vida personal.
+
+  - Edad_Escalada, Satisfacción_Laboral e Ingreso_Mensual_Escalada: Los coeficientes negativos para estas variables sugieren que un aumento en la edad, la satisfacción laboral y el ingreso mensual está asociado con una menor probabilidad de rotación. Esto indica que los empleados más jóvenes, menos satisfechos con su trabajo y con salarios más bajos podrían tener una mayor probabilidad de rotación.
+  
+
+
+# 5. Evaluación.
+
+
+## Likelihood Ratio Test (Prueba de Razón de Verosimilitud)
+
+Esta prueba compara el modelo ajustado con un modelo nulo (modelo sin variables predictoras) para determinar si el modelo ajustado es significativamente mejor. Se utiliza el estadístico de prueba chi-cuadrado y se compara con una distribución chi-cuadrado con los grados de libertad apropiados.
+
+  - **Modelo 1.**
+
+Model 1: Este es el modelo completo que incluye todas las variables predictoras (Viaje_negocios, Departamento, Estado_Civil, Edad, Satisfación_Laboral, Ingreso_Mensual) para predecir la variable dependiente Rotación.
+
+Model 2: Este es el modelo nulo o modelo más simple, que solo incluye el intercepto o constante (Rotación ~ 1).
+
+La hipótesis nula del Likelihood Ratio Test es que el modelo más simple (Modelo 2) es suficiente para explicar los datos en comparación con el modelo más complejo (Modelo 1). La hipótesis alternativa es que el modelo más complejo proporciona un mejor ajuste que el modelo más simple.
+
+La tabla presenta los siguientes resultados:
+
+  - #Df: Número de grados de libertad.
+  
+  - LogLik: Logaritmo de la verosimilitud del modelo.
+  
+  - Df: Diferencia en el número de parámetros entre los dos modelos.
+  
+  - Chisq: Estadístico de prueba de la razón de verosimilitudes, que se distribuye como una distribución chi-cuadrado bajo la hipótesis nula.
+  
+  - Pr(>Chisq): Valor p, que indica la probabilidad de observar el estadístico de prueba (o uno más extremo) si la hipótesis nula es verdadera.
+  
+En este caso, el valor p es significativamente menor que cualquier nivel de significancia común (p < 0.05, p < 0.01, etc.), lo que indica que hay evidencia suficiente para rechazar la hipótesis nula. Por lo tanto, concluimos que el modelo más complejo (Modelo 1) proporciona un mejor ajuste a los datos que el modelo más simple (Modelo 2).
+
+
+```{r, echo=FALSE}
+# Prueba de Razón de Verosimilitud (Likelihood Ratio Test)
+lr_test_1 <- lrtest(modelo_logit_1)
+print(lr_test_1)
+```
+ 
+  - **Modelo 2.**
+
+En este caso, el valor p es significativamente menor que cualquier nivel de significancia común (p < 0.05, p < 0.01, etc.), lo que indica que hay evidencia suficiente para rechazar la hipótesis nula. Por lo tanto, concluimos que el modelo más complejo (Modelo 1) proporciona un mejor ajuste a los datos que el modelo más simple (Modelo 2).
+
+```{r, echo=FALSE}
+lr_test_2 <- lrtest(modelo_logit_2)
+print(lr_test_2)
+```
+
+
+Mejor modelo según el Likelihood Ratio Test:
+
+Para comparar los resultados de ambos modelos logit y determinar cuál es mejor, observamos los valores del estadístico de prueba (Chisq) y sus valores p asociados.
+
+Modelo Logit 1:
+
+  - Estadístico de prueba (Chisq): 146.74.
+  
+  - Valor p: < 2.2e-16 (muy significativo).
+  
+Modelo Logit 2:
+
+  - Estadístico de prueba (Chisq): 125.16.
+  
+  - Valor p: < 2.2e-16 (muy significativo)
+  
+Ambos modelos tienen valores de estadístico de prueba (Chisq) significativamente grandes y valores p muy pequeños, lo que indica que el Modelo 1 y el Modelo 2 proporcionan un ajuste significativamente mejor que un modelo nulo que solo incluye el intercepto.
+
+Para determinar cuál es el mejor modelo, comparamos los valores de los estadísticos de prueba. En este caso, el Modelo 1 tiene un estadístico de prueba más grande (146.74) en comparación con el Modelo 2 (125.16). Esto sugiere que el Modelo 1 tiene un mejor ajuste a los datos que el Modelo 2.
+
+## Deviance
+
+  - **Modelo 1.**
+
+
+La deviance es una medida de ajuste del modelo en regresión logística y se utiliza para evaluar qué tan bien se ajusta el modelo a los datos observados. Cuanto menor sea la deviance, mejor será el ajuste del modelo a los datos.
+
+```{r,echo=FALSE}
+deviance_1 <- deviance(modelo_logit_1)
+print(paste("Deviance Modelo 1", deviance_1))
+```
+  - **Modelo 2.**
+
+```{r,echo=FALSE}
+deviance_2 <- deviance(modelo_logit_2)
+print(paste("Deviance Modelo 2", deviance_2))
+```
+
+Comparación e interpretación:
+
+  - El Modelo 2 tiene una deviance considerablemente menor que el Modelo 1. Esto indica que el Modelo 2 tiene un mejor ajuste a los datos observados en comparación con el Modelo 1.
+
+  - Una deviance más baja sugiere que el modelo explica una mayor proporción de la variabilidad en los datos y se ajusta mejor a los datos observados.
+
+  - Por lo tanto, basándonos en el criterio de deviance, el Modelo 2 sería la mejor elección entre los dos modelos.
+
+  - En resumen, el Modelo 2 proporciona un mejor ajuste a los datos y debería preferirse sobre el Modelo 1.
+
+
+
+## AIC (Criterio de Información de Akaike) y BIC (Criterio de Información Bayesiano).
+
+El Criterio de Información de Akaike (AIC) y el Criterio de Información Bayesiano (BIC) son medidas de la calidad del ajuste del modelo, que penalizan la complejidad del modelo. En general, se prefiere un valor más bajo de AIC y BIC, lo que indica un mejor ajuste del modelo con una penalización mínima por la complejidad.
+  
+  - **Modelo 1.**
+
+```{r,echo=FALSE}
+# Cálculo del AIC y BIC
+AIC_modelo_1 <- AIC(modelo_logit_1)
+BIC_modelo_1 <- BIC(modelo_logit_1)
+print(paste("AIC Modelo 1:", AIC_modelo_1))
+print(paste("BIC Modelo 1:", BIC_modelo_1))
+```
+
+  - **Modelo 2.**
+    
+```{r,echo=FALSE}
+# Cálculo del AIC y BIC
+AIC_modelo_2 <- AIC(modelo_logit_2)
+BIC_modelo_2 <- BIC(modelo_logit_2)
+print(paste("AIC Modelo 2:", AIC_modelo_2))
+print(paste("BIC Modelo 2:", BIC_modelo_2))
+```
+
+
+Comparación e interpretación:
+
+  - Tanto el AIC como el BIC son considerablemente más bajos para el Modelo 2 en comparación con el Modelo 1.
+
+  - Un valor más bajo de AIC y BIC indica un mejor ajuste del modelo.
+
+  - El Modelo 2, con valores más bajos de AIC y BIC, sugiere que es un modelo más parsimonioso y con un mejor ajuste a los datos.
+
+  - Por lo tanto, basándonos en el AIC y BIC, el Modelo 2 sería la mejor elección entre los dos modelos.
+
+  - En resumen, el Modelo 2 proporciona un mejor ajuste a los datos y es más parsimonioso en términos de complejidad del modelo, lo que lo convierte en la mejor opción según los criterios de AIC y BIC.
+
+
+
+## Matriz de confusión
+
+  - **Modelo 1.**
+
+
+  - La matriz de confusión muestra que se predijeron correctamente 1228 casos negativos (clase 0) y 20 casos positivos (clase 1).
+  
+  - Sin embargo, el modelo también clasificó erróneamente 217 casos negativos como positivos y 5 casos positivos como negativos.
+  
+  - La precisión global del modelo es del 84.9%, con un intervalo de confianza del 95% entre 82.96% y 86.69%.
+  
+  - La sensibilidad del modelo (tasa de verdaderos positivos) es alta (99.6%), lo que indica que el modelo es bueno para identificar los casos positivos reales.
+  
+  - Sin embargo, la especificidad del modelo (tasa de verdaderos negativos) es muy baja (8.4%), lo que indica que el modelo tiene dificultades para identificar los casos negativos reales.
+
+  - El valor predictivo positivo (PPV) es del 84.98%, lo que significa que, de todas las predicciones positivas hechas por el modelo, el 84.98% son verdaderamente positivas.
+  
+  - El valor predictivo negativo (NPV) es del 80%, lo que significa que, de todas las predicciones negativas hechas por el modelo, el 80% son verdaderamente negativas.
+
+
+```{r,echo=FALSE}
+predicciones_1 <- predict(modelo_logit_1, newdata = rotacion, type = "response")
+clases_predichas_1 <- ifelse(predicciones_1 > 0.5, 1, 0)
+rotacion$Rotación<-as.numeric(rotacion$Rotación==1)
+matriz_confusion_1 <- confusionMatrix(table(clases_predichas_1, rotacion$Rotación))
+print(matriz_confusion_1)
+```
+
+  - **Modelo 2.**
+
+  - La matriz de confusión muestra que se predijeron correctamente 362 casos negativos (clase 0) y 10 casos positivos (clase 1).
+  
+  - Sin embargo, el modelo también clasificó erróneamente 65 casos negativos como positivos y 4 casos positivos como negativos.
+  
+  - La precisión global del modelo es del 84.35%, con un intervalo de confianza del 95% entre 80.62% y 87.62%.
+  
+  - La sensibilidad del modelo es alta (98.91%), indicando una buena capacidad para identificar los casos positivos reales.
+  
+  - La especificidad del modelo es baja (13.33%), lo que indica dificultades para identificar los casos negativos reales.
+  
+  - El valor predictivo positivo (PPV) es del 84.78%, lo que significa que, de todas las predicciones positivas hechas por el modelo, el 84.78% son verdaderamente positivas.
+  
+  - El valor predictivo negativo (NPV) es del 71.43%, lo que significa que, de todas las predicciones negativas hechas por el modelo, el 71.43% son verdaderamente negativas.
+
+
+```{r, echo=FALSE}
+set.seed(123)  # Para reproducibilidad
+predicciones <- predict(modelo_logit_2, newdata = datos_prueba, type = "response")
+clases_predichas <- ifelse(predicciones > 0.5, 1, 0)
+#datos_prueba$Rotación<-as.numeric(datos_prueba$Rotación==1)
+# Crear la matriz de confusión
+matriz_confusion <- confusionMatrix(table(clases_predichas, datos_prueba$Rotación))
+# Mostrar la matriz de confusión y métricas de evaluación
+print(matriz_confusion)
+```
+
+
+## ROC-AUC (Área bajo la Curva ROC)
+
+Desempeño del modelo:
+
+El Modelo 1 tiene un ROC-AUC de 0.73, lo que sugiere que tiene una capacidad de discriminación aceptable para predecir la rotación de empleados. Esto indica que el modelo tiene un buen rendimiento en la distinción entre los empleados que rotan y los que no.
+
+El Modelo 2 tiene un ROC-AUC ligeramente inferior de 0.656. Aunque es un poco más bajo que el del Modelo 1, sigue siendo un valor decente y sugiere que el modelo puede hacer predicciones útiles sobre la rotación de empleados.
+
+En resumen, ambos modelos tienen valores de ROC-AUC que indican una capacidad de discriminación aceptable. Sin embargo, el Modelo 1 parece tener un rendimiento ligeramente mejor en esta métrica en comparación con el Modelo 2.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Calcular las probabilidades de predicción para el Modelo 1
+probabilidades_1 <- predict(modelo_logit_1, newdata = rotacion, type = "response")
+
+# Calcular las probabilidades de predicción para el Modelo 2
+probabilidades_2 <- predict(modelo_logit_2, newdata = datos_prueba, type = "response")
+
+# Calcular la curva ROC para el Modelo 1
+curva_roc_1 <- roc(response = rotacion$Rotación, predictor = probabilidades_1)
+
+# Calcular la curva ROC para el Modelo 2
+curva_roc_2 <- roc(response = datos_prueba$Rotación, predictor = probabilidades_2)
+
+# Crear un data frame con los valores de sensibilidad y especificidad para el Modelo 1
+roc_df_1 <- data.frame(
+  especificidad = 1 - curva_roc_1$specificities,
+  sensibilidad = curva_roc_1$sensitivities
+)
+
+# Crear un data frame con los valores de sensibilidad y especificidad para el Modelo 2
+roc_df_2 <- data.frame(
+  especificidad = 1 - curva_roc_2$specificities,
+  sensibilidad = curva_roc_2$sensitivities
+)
+
+# Crear el gráfico de la Curva ROC con ggplot2
+ggplot() +
+  geom_line(data = roc_df_1, aes(x = especificidad, y = sensibilidad), color = "blue") +
+  geom_line(data = roc_df_2, aes(x = especificidad, y = sensibilidad), color = "red") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(x = "Tasa de Falsos Positivos (1 - Especificidad)", y = "Tasa de Verdaderos Positivos (Sensibilidad)", title = "Curva ROC") +
+  geom_text(aes(x = 0.5, y = 0.3, label = paste("Modelo 1 (AUC =", round(auc(curva_roc_1), 3), ")")), color = "blue") +
+  geom_text(aes(x = 0.5, y = 0.25, label = paste("Modelo 2 (AUC =", round(auc(curva_roc_2), 3), ")")), color = "red") +
+  scale_color_identity(guide = "legend", labels = c("Modelo 1", "Modelo 2"), breaks = c("blue", "red")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+# 6. Predicciones.
+
+Vamos a predecir la probabilidad de que un empleado con las siguientes características rote de cargo.
+
+Las características son:
+
+  - Viaje de Negocios: Raramente.
+  
+  - Departamento: Ventas.
+  
+  - Estado Civil: Soltero.
+  
+  - Edad: 40.
+  
+  - Satisfacción Laboral: 3.
+  
+  - Ingreso Mesnual: 5000 
+  
+```{r, echo=FALSE}
+media_edad <- mean(rotacion$Edad)
+sd_edad <- sd(rotacion$Edad)
+media_ingreso <- mean(rotacion$Ingreso_Mensual)
+sd_ingreso <- sd(rotacion$Ingreso_Mensual)
+
+media_edad_r <- mean(datos_entrenamiento$Edad)
+sd_edad_r <- sd(datos_entrenamiento$Edad)
+media_ingreso_r <- mean(datos_entrenamiento$Ingreso_Mensual)
+sd_ingreso_R <- sd(datos_entrenamiento$Ingreso_Mensual)
+```
+  
+```{r, echo=FALSE}
+nuevo_dato <- data.frame(
+  Viaje_negocios = "Raramente",
+  Departamento = "Ventas",
+  Estado_Civil = "Soltero",
+  Edad_Escalada = (40 - media_edad) / sd_edad, 
+  Satisfación_Laboral = 3,
+  Ingreso_Mensual_Escalada = (5000 - media_ingreso) / sd_ingreso
+)
+
+nuevo_dato_1 <- data.frame(
+  Viaje_negocios = "Raramente",
+  Departamento = "Ventas",
+  Estado_Civil = "Soltero",
+  Edad_Escalada = (40 - media_edad_r) / sd_edad_r,
+  Satisfación_Laboral = 3,
+  Ingreso_Mensual_Escalada = (5000 - media_ingreso_r) / sd_ingreso_R 
+  # Escalar el ingreso mensual
+)
+```
+
+
+```{r, echo=FALSE}
+predic_1 <- predict(modelo_logit_1, newdata = nuevo_dato, type = "response")
+# Realizar la predicción con el modelo logit 2
+predic_2 <- predict(modelo_logit_2, newdata = nuevo_dato_1, type = "response")
+```
+
+En este caso, para un empelado que viaja raramente, pertenezca al departamento ventas, además es soltero y con 40 años de edad, presenta una satisfacción laboral de 3 y un ingreso mensual de 5000, según el modelo 1, el empleado con estás características tiene una probabilidad de rotación de 26.98% y para el modelo 2 es de 24.40%.
+
+```{r, echo=FALSE}
+
+# Formatear las predicciones como porcentajes con dos decimales
+predic_1_porcentaje <- paste0(formatC(predic_1 * 100, format = "f", digits = 2), "%")
+predic_2_porcentaje <- paste0(formatC(predic_2 * 100, format = "f", digits = 2), "%")
+print(paste("Predicción modelo 1: ", predic_1_porcentaje))
+print(paste("Predicción modelo 2: ", predic_2_porcentaje))
+```
+
+
+**Predicción de rotación del empelado 14:**
+
+
+Tiene las siguientes  características: 
+
+  - Viaje de Negocios: Raramente.
+
+  - Departamento: IyD.
+
+  - Estado Civil: Divorciado.
+
+  - Edad:  34.
+
+  - Satisfacción Laboral: 4.
+
+  - Ingreso Mensual: 2661.
+
+```{r,echo=FALSE}
+# Crear datos inventados para un individuo
+persona_especifica = rotacion[14, ]
+
+# Realizar predicciones con ambos modelos
+prediccion_1 <- predict(modelo_logit_1, newdata = persona_especifica, type = "response")
+prediccion_2 <- predict(modelo_logit_2, newdata = persona_especifica, type = "response")
+```
+
+Para este otro caso, el empelado 14 tiene una probabilidad de 7.54% de rotación de cargo según el modelo 1, y un 6.37% de rotación de cargo según el modelo 2.
+
+```{r,echo=FALSE}
+# Formatear las predicciones como porcentajes con dos decimales
+print(paste("Predicción modelo 1: ",paste0(formatC(prediccion_1 * 100, format = "f", digits = 2), "%")))
+print(paste("Predicción modelo 2: ",paste0(formatC(prediccion_2 * 100, format = "f", digits = 2), "%")))
+```
+
+
+Predicción de un individuo con las siguentes caracteristicas:
+
+  - Viaje de Negocios: Frecuentemente.
+
+  - Departamento: IyD
+
+  - Estado Civil: Soltero.
+
+  - Edad:  Considerando dos individuos: uno con menos de 35 años (18 años) y otro con 35 años.
+
+  - Satisfacción Laboral: 1.
+
+  - Ingreso Mesnual: 5000 Considerando dos ingresos mensuales: uno menor a 5000 y otro igual a 5000
+
+```{r,echo=FALSE}
+# Subconjunto de datos para el primer individuo (18 años, salario de 1000)
+
+# Crear el dataframe individuo_1 con los valores
+individuo_1 <- data.frame(
+  Viaje_negocios = "Frecuentemente",
+  Departamento = "IyD",
+  Estado_Civil = "Soltero",
+  Edad_Escalada = (18 - media_edad) / sd_edad, # Aquí falta asignar el valor de Edad_Escalada
+  Satisfación_Laboral = 1,
+  Ingreso_Mensual_Escalada = (1000 - media_ingreso) / sd_ingreso
+)
+
+
+# Subconjunto de datos para el segundo individuo (35 años, salario de 5000)
+individuo_2 <- data.frame(
+  Viaje_negocios = "Frecuentemente",
+  Departamento = "IyD",
+  Estado_Civil = "Soltero",
+  Edad_Escalada = (18 - media_edad_r) / sd_edad_r,
+  Satisfación_Laboral = 1,
+  Ingreso_Mensual_Escalada = (5000 - media_ingreso_r) / sd_ingreso_R
+)
+
+# Realizar predicciones con ambos modelos para el primer individuo
+prediccion_1_individuo_1 <- predict(modelo_logit_1, newdata = individuo_1, type = "response")
+prediccion_2_individuo_1 <- predict(modelo_logit_2, newdata = individuo_1, type = "response")
+
+# Realizar predicciones con ambos modelos para el segundo individuo
+prediccion_1_individuo_2 <- predict(modelo_logit_1, newdata = individuo_2, type = "response")
+prediccion_2_individuo_2 <- predict(modelo_logit_2, newdata = individuo_2, type = "response")
+```
+
+Por último, nuestra predicción de que los dos empelado el primero con 18 años y un ingreso mensual de 1000, y con las otras características intactas, es decir, es soltero, tiene una satisfacción laboral de 1, viaja frecuentemente en temas de negocios y pertenece al departamento IyD. El modelo 1 nos muestra que tiene una probabilidad de 65.57% de rotación de cargo y el modelo 2 de 74.07%.
+
+```{r,echo=FALSE}
+# Mostrar las predicciones para el primer individuo
+print("Predicciones para el primer individuo (18 años, salario de 1000):")
+print(paste("Predicción modelo 1: ",paste0(formatC(prediccion_1_individuo_1 * 100, format = "f", digits = 2), "%")))
+print(paste("Predicción modelo 2: ",paste0(formatC(prediccion_2_individuo_1 * 100, format = "f", digits = 2), "%")))
+```
+
+Por otro lado, para el empleado con las características de 35 años y un ingreso mensual de 5000, y con las otras características intactas, es decir, es soltero, tiene una satisfacción laboral de 1, viaja frecuentemente en temas de negocios y pertenece al departamento IyD. El modelo 1 nos muestra que tiene una probabilidad de 55.61% de rotación de cargo y el modelo 2 de 64.61%.
+
+```{r,echo=FALSE}
+# Mostrar las predicciones para el segundo individuo
+print("Predicciones para el segundo individuo (35 años, salario de 5000):")
+print(paste("Predicción modelo 1: ",paste0(formatC(prediccion_1_individuo_2 * 100, format = "f", digits = 2), "%")))
+print(paste("Predicción modelo 2: ",paste0(formatC(prediccion_2_individuo_2 * 100, format = "f", digits = 2), "%")))
+```
+
+# 7. Conclusiones.
+
+Basándonos en los resultados de los modelos logit, también del análisis bivariado realizado en el punto 3, se recomiendan las siguientes estrategias para disminuir la rotación en la empresa: 
+
+  - Fomentar la satisfacción laboral: Se observa que la satisfacción laboral tiene un efecto significativo en la rotación en ambos modelos. Por lo tanto, es importante implementar medidas para mejorar el ambiente laboral, promover el reconocimiento y la valoración de los empleados, así como proporcionar oportunidades de desarrollo profesional y personal.
+  
+  - Atender las necesidades de los empleados jóvenes: En ambos modelos, la variable de edad tiene un impacto significativo en la rotación. Específicamente, se observa que una menor edad está asociada con una mayor probabilidad de rotación. Por lo tanto, es fundamental prestar atención a las necesidades y expectativas de los empleados más jóvenes, ofreciendo programas de mentoría, oportunidades de crecimiento y flexibilidad laboral.
+  
+  - Analizar el impacto del ingreso mensual: Ambos modelos muestran que el ingreso mensual tiene un efecto significativo en la rotación. Aunque la relación puede ser más compleja y dependiente del contexto específico de la empresa, es importante considerar si existen disparidades salariales significativas entre los empleados que puedan influir en su permanencia en la organización. Sobre todo, aquellos empleados que rotan de cargo son los que ganan perciben menos ingresos.
+  
+  - Evaluar el impacto de los viajes de negocios: Es importante evaluar cómo los viajes de negocios pueden afectar la satisfacción laboral y el equilibrio entre el trabajo y la vida personal de los empleados, y tomar medidas para mitigar cualquier efecto negativo. Aquellos empleados que viajan raramente por temas de negocio son más propensos a rotar de cargo.
+  
+  - Optimizar la gestión de los departamentos: Ambos modelos muestran que el departamento de ventas tiene un impacto significativo en la rotación. Esto podría indicar la necesidad de evaluar y mejorar las condiciones laborales, el liderazgo y el apoyo dentro de este departamento en particular, así como implementar estrategias específicas para retener a los empleados clave.
+  
+En resumen, las estrategias para reducir la rotación en la empresa deben centrarse en mejorar la satisfacción laboral, atender las necesidades específicas de diferentes grupos de empleados, analizar las disparidades salariales y optimizar la gestión de los departamentos, todo ello con el objetivo de crear un ambiente laboral más satisfactorio, estable y motivador.
+
+
+
+:::
